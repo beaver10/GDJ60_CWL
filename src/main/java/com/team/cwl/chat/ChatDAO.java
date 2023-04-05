@@ -15,7 +15,7 @@ public class ChatDAO {
 	
 	
 	//채팅방 가져오기 
-	public List<ChatDTO> getChatList(ChatDTO chatDTO) throws Exception{
+	public List<MessageDTO> getChatList(ChatDTO chatDTO) throws Exception{
 		System.out.println("DAO");
 		return sqlSession.selectList(NAMESPACE + "getChatList", chatDTO);
 	}

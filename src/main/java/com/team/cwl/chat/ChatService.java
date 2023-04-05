@@ -13,6 +13,7 @@ public class ChatService {
 	@Autowired
 	private ChatDAO chatDAO;
 	
+	//최근 대화한 채팅리스트 받아오는 
 	public List<ChatDTO> getChatList(ChatDTO chatDTO) throws Exception{
 		return chatDAO.getChatList(chatDTO);
 	}

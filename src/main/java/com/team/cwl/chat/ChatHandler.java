@@ -15,21 +15,34 @@ import javax.servlet.http.HttpSession;
 import javax.xml.crypto.Data;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import com.fasterxml.jackson.databind.util.JSONPObject;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.team.cwl.chat.ApplicationEvent.ChatWebSocketConnectEvent;
+import com.team.cwl.chat.ApplicationEvent.ChatWebSocketDisconnectEvent;
 import com.team.cwl.member.MemberDTO;
 import com.team.cwl.member.MemberMapper;
 import com.team.cwl.member.MemberServiceImpl;
 
 public class ChatHandler extends TextWebSocketHandler{
+	
+	@Autowired
+	private ApplicationEventPublisher applicationEventPublisher;
+	
+	@Autowired
+	private ChatService chatService = new ChatService();
+
+	
 //	List<WebSocketSession> sessionList=new ArrayList<WebSocketSession>();
 //	List <WebSocketSession> my = new ArrayList<WebSocketSession>();
 //	Map<String, WebSocketSession> map = new HashMap<String, WebSocketSession>();
@@ -38,8 +51,17 @@ public class ChatHandler extends TextWebSocketHandler{
 	private Map<Set<String>, StringBuffer> personal = new HashMap<Set<String>, StringBuffer>();
 	
 	//소켓 연결 
-	@Override
+	@EventListener
 	public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+		
+		// ----이벤트 
+		// 채팅 메시지 리스트를 받아오는 로직
+	    
+	    // ChatWebSocketConnectEvent 발행
+	    ChatWebSocketConnectEvent connectEvent = new ChatWebSocketConnectEvent(this, chatMessages);
+	    applicationEventPublisher.publishEvent(connectEvent);
+	    
+	    
 		System.out.println("소켓 연결됨 : " + session);
 		MemberDTO memberDTO=(MemberDTO)session.getAttributes().get("member");
 		System.out.println("채팅 로그인 : "+memberDTO.getMemberId());
@@ -51,8 +73,8 @@ public class ChatHandler extends TextWebSocketHandler{
 	}
 	
 	//소켓 종료 
-	@Override
-	public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
+	@EventListener
+	public void afterConnectionClosed(WebSocketSession session, CloseStatus status, SessionDisconnectEvent event) throws Exception {
 		System.out.println("소켓 종료 :" + session.getId());
 		MemberDTO memberDTO = (MemberDTO) session.getAttributes().get("member");
         String memberId = memberDTO.getMemberId();
@@ -60,7 +82,17 @@ public class ChatHandler extends TextWebSocketHandler{
 		maps.remove(memberId);
 	    //personal.remove(memberId);
 
-		//super.afterConnectionClosed(session, status);
+		
+		// ----이벤트 
+		 List<MessageDTO> chatMessages = getChatMessagesFromWebSocketSession(event.getSession());
+		 saveChatMessagesToDatabase(chatMessages);
+		    
+		 // ChatWebSocketDisconnectEvent 발행
+		 ChatWebSocketDisconnectEvent disconnectEvent = new ChatWebSocketDisconnectEvent(this, chatMessages);
+		 applicationEventPublisher.publishEvent(disconnectEvent);
+		
+		
+		
 	}
 	
 	//메세지 발송 
@@ -84,7 +116,7 @@ public class ChatHandler extends TextWebSocketHandler{
 			jsonObject.add("value",gson.toJsonTree(maps.keySet().toArray()));
 			System.out.println(memberDTO.getMemberSI());
 			if(memberDTO.getMemberSI() == null ) {
-				// 회원 정보가 세션에 없는 경우, DB에서 가져와서 세션에 설정
+				// 회원 정보가 세션에 없는 경우, DB에서 가져
 				MemberServiceImpl impl = new MemberServiceImpl();
 			    MemberDTO member = impl.getMemberInfo(memberId); // DAO를 사용하여 회원 정보를 가져옴
 			    System.out.println(impl.getMemberInfo(memberId));
